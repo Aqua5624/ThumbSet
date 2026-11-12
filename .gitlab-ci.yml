@@ -5,7 +5,7 @@ build_ios:
   stage: build
   tags:
     - saas-macos-medium-m1
-  image: macos-15-xcode-16
+  image: macos-26-xcode-26
   script:
     - xcodebuild -version
     - |
@@ -26,9 +26,9 @@ build_ios:
       rm -rf Payload
       mkdir Payload
       cp -R "$APP" Payload/
-      zip -r ThumbSet-unsigned-v0.1.0.ipa Payload
-      ls -lh ThumbSet-unsigned-v0.1.0.ipa
+      zip -r ThumbSet-unsigned-v0.2.0.ipa Payload
+      ls -lh ThumbSet-unsigned-v0.2.0.ipa
   artifacts:
     paths:
-      - ThumbSet-unsigned-v0.1.0.ipa
+      - ThumbSet-unsigned-v0.2.0.ipa
     expire_in: 14 days

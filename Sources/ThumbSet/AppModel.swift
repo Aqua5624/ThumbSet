@@ -47,6 +47,39 @@ final class AppModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var notice: String?
 
+    // フレーム一覧 (フィルムストリップ) — タップでそのフレームを選べる
+    struct FilmFrame: Identifiable {
+        let id = UUID()
+        let time: Double
+        let image: UIImage
+    }
+    @Published var filmstrip: [FilmFrame] = []
+
+    // 書き出し履歴 (アプリ内にファイルを残す)
+    struct HistoryItem: Identifiable, Codable {
+        var id = UUID()
+        var date: Date
+        var sourceName: String
+        var modeLabel: String
+        var outputFileName: String
+        var thumbFileName: String?
+    }
+    @Published var history: [HistoryItem] = []
+
+    static var exportsDir: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("ThumbSetExports", isDirectory: true)
+        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        return base
+    }
+
+    init() {
+        if let data = UserDefaults.standard.data(forKey: "thumbset.history"),
+           let items = try? JSONDecoder().decode([HistoryItem].self, from: data) {
+            history = items
+        }
+    }
+
     private var workDir: URL {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("thumbset-work", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -78,7 +111,9 @@ final class AppModel: ObservableObject {
             outputInfo = nil
             frameTime = 0
             framePreview = nil
+            filmstrip = []
             await refreshFramePreview(exact: true)
+            buildFilmstrip()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -107,6 +142,30 @@ final class AppModel: ObservableObject {
             if Task.isCancelled { return }
             await self?.refreshFramePreview(exact: false)
         }
+    }
+
+    /// 動画全体から等間隔にフレームを取り出してフィルムストリップを作る
+    func buildFilmstrip() {
+        guard let info else { return }
+        let url = info.url
+        let duration = info.duration
+        Task { [weak self] in
+            let count = 14
+            var frames: [FilmFrame] = []
+            for i in 0..<count {
+                let t = duration * Double(i) / Double(count - 1)
+                if let r = try? await VideoService.frame(at: min(t, max(0, duration - 0.05)), from: url, exact: false) {
+                    frames.append(FilmFrame(time: r.actualSeconds, image: r.image))
+                    if i % 4 == 0 { self?.filmstrip = frames }
+                }
+            }
+            self?.filmstrip = frames
+        }
+    }
+
+    func selectFilmFrame(_ frame: FilmFrame) {
+        frameTime = frame.time
+        Task { await refreshFramePreview(exact: true) }
     }
 
     func stepFrame(_ direction: Double) {
@@ -171,6 +230,7 @@ final class AppModel: ObservableObject {
             notice = outputMode == .cover
                 ? "カバー画像を付けたよ！映像・音声は元のまま（無劣化）だよ"
                 : "先頭にサムネイル画像を差し込んだよ（再エンコード済み）"
+            registerHistory(modeLabel: outputMode.rawValue, output: outURL, thumbData: thumbData)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -188,8 +248,66 @@ final class AppModel: ObservableObject {
             outputURL = outURL
             outputInfo = try? await VideoService.loadInfo(url: outURL)
             notice = "カバー画像を外した版を作ったよ"
+            registerHistory(modeLabel: "カバー除去", output: outURL, thumbData: nil)
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    // MARK: 履歴
+
+    func registerHistory(modeLabel: String, output: URL, thumbData: Data?) {
+        guard let info else { return }
+        let id = UUID()
+        let outName = id.uuidString + ".mp4"
+        let dest = Self.exportsDir.appendingPathComponent(outName)
+        do {
+            try? FileManager.default.removeItem(at: dest)
+            try FileManager.default.copyItem(at: output, to: dest)
+            var thumbName: String?
+            if let thumbData {
+                thumbName = id.uuidString + ".jpg"
+                try thumbData.write(to: Self.exportsDir.appendingPathComponent(thumbName!))
+            }
+            let item = HistoryItem(date: Date(),
+                                   sourceName: info.url.lastPathComponent,
+                                   modeLabel: modeLabel,
+                                   outputFileName: outName,
+                                   thumbFileName: thumbName)
+            history.insert(item, at: 0)
+            // 30件を超えたら古いものから消す
+            while history.count > 30 {
+                let old = history.removeLast()
+                removeHistoryFiles(old)
+            }
+            saveHistory()
+        } catch {
+            // 履歴に残せなくても書き出し自体は成功扱い
+        }
+    }
+
+    func historyURL(_ item: HistoryItem) -> URL {
+        Self.exportsDir.appendingPathComponent(item.outputFileName)
+    }
+
+    func historyThumbURL(_ item: HistoryItem) -> URL? {
+        item.thumbFileName.map { Self.exportsDir.appendingPathComponent($0) }
+    }
+
+    func deleteHistory(_ item: HistoryItem) {
+        removeHistoryFiles(item)
+        history.removeAll { $0.id == item.id }
+        saveHistory()
+    }
+
+    private func removeHistoryFiles(_ item: HistoryItem) {
+        try? FileManager.default.removeItem(at: historyURL(item))
+        if let t = historyThumbURL(item) { try? FileManager.default.removeItem(at: t) }
+    }
+
+    private func saveHistory() {
+        if let data = try? JSONEncoder().encode(history) {
+            UserDefaults.standard.set(data, forKey: "thumbset.history")
         }
     }
 

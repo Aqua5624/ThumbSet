@@ -191,7 +191,7 @@ L.append("/* Begin XCBuildConfiguration section */")
 def proj_config(cid, name, debug):
     out = [f'\t\t{cid} /* {name} */ = {{', "\t\t\tisa = XCBuildConfiguration;", "\t\t\tbuildSettings = {"]
     out.append("\t\t\t\tALWAYS_SEARCH_USER_PATHS = NO;")
-    out.append("\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 17.0;")
+    out.append("\t\t\t\tIPHONEOS_DEPLOYMENT_TARGET = 26.0;")
     out.append("\t\t\t\tLOCALIZATION_PREFERS_STRING_CATALOGS = YES;")
     if debug:
         out.append("\t\t\t\tMTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;")
@@ -222,7 +222,7 @@ def tgt_config(cid, name):
     out.append('\t\t\t\t\t"$(inherited)",')
     out.append('\t\t\t\t\t"@executable_path/Frameworks",')
     out.append("\t\t\t\t);")
-    out.append("\t\t\t\tMARKETING_VERSION = 0.1.0;")
+    out.append("\t\t\t\tMARKETING_VERSION = 0.2.0;")
     out.append("\t\t\t\tPRODUCT_BUNDLE_IDENTIFIER = com.aqua5624.ThumbSet;")
     out.append('\t\t\t\tPRODUCT_NAME = "$(TARGET_NAME)";')
     out.append("\t\t\t\tSDKROOT = iphoneos;")

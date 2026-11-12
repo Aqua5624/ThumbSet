@@ -10,12 +10,19 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
-      - name: Show Xcode version
-        run: xcodebuild -version
+      - name: Select Xcode 26 (non-beta, for iOS 26 SDK / Liquid Glass)
+        run: |
+          ls /Applications | grep -i Xcode || true
+          APP=$(ls /Applications | grep -E '^Xcode_26.*\.app$' | grep -vi beta | sort -V | tail -n 1)
+          echo "Selected Xcode: $APP"
+          if [ -n "$APP" ]; then
+            sudo xcode-select -s "/Applications/$APP/Contents/Developer"
+          fi
+          xcodebuild -version
 
       - name: Build unsigned
         run: |
@@ -38,15 +45,15 @@ jobs:
           rm -rf Payload
           mkdir Payload
           cp -R "$APP" Payload/
-          zip -r ThumbSet-unsigned-v0.1.0.ipa Payload
-          ls -lh ThumbSet-unsigned-v0.1.0.ipa
+          zip -r ThumbSet-unsigned-v0.2.0.ipa Payload
+          ls -lh ThumbSet-unsigned-v0.2.0.ipa
 
       - name: Upload IPA artifact
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: ThumbSet-unsigned
-          path: ThumbSet-unsigned-v0.1.0.ipa
+          path: ThumbSet-unsigned-v0.2.0.ipa
           retention-days: 14
 
       - name: Publish IPA as release asset
@@ -54,9 +61,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view ipa-latest >/dev/null 2>&1; then
-            gh release upload ipa-latest ThumbSet-unsigned-v0.1.0.ipa --clobber
+            gh release upload ipa-latest ThumbSet-unsigned-v0.2.0.ipa --clobber
           else
-            gh release create ipa-latest ThumbSet-unsigned-v0.1.0.ipa \
+            gh release create ipa-latest ThumbSet-unsigned-v0.2.0.ipa \
               --title "ThumbSet unsigned IPA (latest build)" \
               --notes "Unsigned IPA built by GitHub Actions. Sign and install with AltStore Classic or LiveContainer. Requires iOS 17 or later."
           fi
