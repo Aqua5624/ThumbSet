@@ -1,0 +1,34 @@
+stages:
+  - build
+
+build_ios:
+  stage: build
+  tags:
+    - saas-macos-medium-m1
+  image: macos-15-xcode-16
+  script:
+    - xcodebuild -version
+    - |
+      xcodebuild \
+        -project ThumbSet.xcodeproj \
+        -scheme ThumbSet \
+        -sdk iphoneos \
+        -configuration Release \
+        -derivedDataPath build \
+        CODE_SIGNING_ALLOWED=NO \
+        CODE_SIGNING_REQUIRED=NO \
+        CODE_SIGN_IDENTITY="" \
+        clean build
+    - |
+      APP=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" | head -1)
+      echo "App: $APP"
+      test -n "$APP"
+      rm -rf Payload
+      mkdir Payload
+      cp -R "$APP" Payload/
+      zip -r ThumbSet-unsigned-v0.1.0.ipa Payload
+      ls -lh ThumbSet-unsigned-v0.1.0.ipa
+  artifacts:
+    paths:
+      - ThumbSet-unsigned-v0.1.0.ipa
+    expire_in: 14 days
