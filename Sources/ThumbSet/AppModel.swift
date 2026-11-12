@@ -19,7 +19,7 @@ struct MovieFile: Transferable {
     static var transferRepresentation: some TransferRepresentation {
         FileRepresentation(contentType: .movie) { movie in
             SentTransferredFile(movie.url)
-        } receiving: { received in
+        } importing: { received in
             // 受け取り用の一時ファイルは消されることがあるので、その場で自分の場所へコピーする
             let dest = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString + "-" + received.file.lastPathComponent)
